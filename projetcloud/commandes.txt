@@ -1,0 +1,64 @@
+  1  usermod -aG sudo zineb
+    2  groups zineb
+    3  sudo apt update
+    4  sudo apt install awscli -y
+    5  aws configure
+    6  aws ec2 describe-instances
+    7  mkdir ~/devops_project
+    8  cd ~/devops_project
+    9  mkdir terraform
+   10  cd terraform
+   13  aws ec2 describe-images     --owners 099720109477     --filters "Name=name,Values=ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"               "Name=state,Values=available"     --query "Images[*].[ImageId,Name]"     --output table
+   14  nano main.tf
+   18  sudo snap install terraform --classic
+   19  terraform init
+   20  terraform plan
+   22  aws ec2 create-key-pair --key-name my-keypair --query "KeyMaterial" --output text > my-keypair.pem
+   23  chmod 400 my-keypair.pem
+   24  terraform apply -auto-approve
+   51  nano hosts.ini
+  103  sudo apt update
+  104  sudo apt install -y build-essential libssl-dev zlib1g-dev libncurses5-dev libncursesw5-dev libreadline-dev libsqlite3-dev libgdbm-dev libdb5.3-dev libbz2-dev libexpat1-dev liblzma-dev tk-dev libffi-dev wget curl
+  105  cd /usr/src
+  106  sudo wget https://www.python.org/ftp/python/3.10.12/Python-3.10.12.tgz
+  107  sudo tar xzf Python-3.10.12.tgz
+  108  cd Python-3.10.12
+  109  sudo ./configure --enable-optimizations
+  110  sudo make altinstall
+  111  python3.10 --version
+  112  cd /root/devops_project/terraform/
+  113  python3.10 -m venv ~/ansible-venv310
+  114  source ~/ansible-venv310/bin/activate
+  115  pip install --upgrade pip setuptools wheel
+  116  pip install ansible
+  117  ansible --version
+  123  export LANG=en_US.UTF-8
+  124  export LANGUAGE=en_US.UTF-8
+  125  export LC_ALL=en_US.UTF-8
+  126  locale
+  127  quit
+  128  exit
+  129  cd devops_project/terraform/
+  132  source ~/ansible-venv310/bin/activate
+  133  ansible --version
+  snap install docker
+
+  197  docker login -u zinebabrabri
+  198  nano deploy_k8s.yml
+  264  ansible-playbook -i hosts.ini deploy_k8s.yml
+  130  ssh -i my-keypair.pem ubuntu@34.207.152.13
+  
+ubuntu@ip-172-31-29-126:~$ kubectl get nodes
+NAME               STATUS   ROLES           AGE    VERSION
+ip-172-31-16-254   Ready    <none>          86m    v1.28.15
+ip-172-31-29-126   Ready    control-plane   105m   v1.28.15
+
+ kubectl get pods
+NAME                         READY   STATUS    RESTARTS   AGE
+nginx-app-5bfc5b486f-5w2tt   1/1     Running   0          87m
+nginx-app-5bfc5b486f-927qh   1/1     Running   0          93m
+
+kubectl get svc
+NAME            TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)        AGE
+kubernetes      ClusterIP   10.96.0.1        <none>        443/TCP        106m
+nginx-service   NodePort    10.107.203.164   <none>        80:30080/TCP   104m

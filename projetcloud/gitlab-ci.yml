@@ -1,0 +1,41 @@
+stages:
+  - test
+  - build
+  - deploy
+
+variables:
+  DOCKER_IMAGE: registry.gitlab.com/zinebabrabri/devshop:latest
+
+test:
+  stage: test
+  image: python:3.11
+  script:
+    - pip install -r requirements.txt
+    - pytest -v
+  only:
+    - main
+
+build:
+  stage: build
+  image: docker:20.10.16
+  services:
+    - docker:20.10.16-dind
+  script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+    - docker build -t $DOCKER_IMAGE .
+    - docker push $DOCKER_IMAGE
+  only:
+    - main
+
+deploy:
+  stage: deploy
+  image: bitnami/kubectl:1.28
+  before_script:
+    - mkdir -p ~/.kube
+    - echo "$KUBE_CONFIG_DATA" | base64 -d > ~/.kube/config
+  script:
+    - kubectl apply -f configmap.yaml
+    - kubectl apply -f deployment.yaml
+    - kubectl apply -f service.yaml
+  only:
+    - main

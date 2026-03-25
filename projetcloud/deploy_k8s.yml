@@ -1,0 +1,156 @@
+---
+- name: Préparer toutes les machines pour Kubernetes
+  hosts: all
+  become: yes
+  tasks:
+    - name: Mettre à jour apt
+      apt:
+        update_cache: yes
+
+    - name: Installer dépendances
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - git
+        state: present
+
+    - name: Installer Docker
+      apt:
+        name: docker.io
+        state: present
+
+    - name: Activer Docker
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Désactiver swap
+      command: swapoff -a
+
+    - name: Désactiver swap dans fstab
+      replace:
+        path: /etc/fstab
+        regexp: '^.*swap.*$'
+        replace: ''
+
+    - name: Charger module br_netfilter
+      modprobe:
+        name: br_netfilter
+        state: present
+
+    - name: Activer sysctl
+      sysctl:
+        name: "{{ item.name }}"
+        value: "{{ item.value }}"
+        state: present
+        reload: yes
+      loop:
+        - { name: net.bridge.bridge-nf-call-iptables, value: 1 }
+        - { name: net.ipv4.ip_forward, value: 1 }
+
+    - name: Installer Kubernetes
+      apt:
+        name:
+          - kubelet
+          - kubeadm
+          - kubectl
+        state: present
+
+    - name: Bloquer versions Kubernetes
+      command: apt-mark hold kubelet kubeadm kubectl
+
+- name: Initialiser le master Kubernetes
+  hosts: masters
+  become: yes
+  tasks:
+    - name: Initialiser le cluster Kubernetes
+      command: kubeadm init --pod-network-cidr=10.244.0.0/16
+      args:
+        creates: /etc/kubernetes/admin.conf
+      register: kubeadm_init
+
+    - name: Créer dossier .kube pour ubuntu
+      file:
+        path: /home/ubuntu/.kube
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: '0755'
+
+    - name: Copier admin.conf dans .kube/config
+      copy:
+        src: /etc/kubernetes/admin.conf
+        dest: /home/ubuntu/.kube/config
+        remote_src: yes
+        owner: ubuntu
+        group: ubuntu
+        mode: '0644'
+
+    - name: Installer Flannel pour le réseau
+      become_user: ubuntu
+      environment:
+        KUBECONFIG: /home/ubuntu/.kube/config
+      command: kubectl apply -f https://raw.githubusercontent.com/flannel-io/flannel/master/Documentation/kube-flannel.yml
+
+    - name: Générer la commande join pour les workers
+      command: kubeadm token create --print-join-command
+      register: join_cmd
+      changed_when: false
+
+    - name: Ajouter la commande join comme variable globale
+      add_host:
+        name: worker_join
+        kubeadm_join_cmd: "{{ join_cmd.stdout }}"
+      run_once: true
+
+    - name: Créer dossier devshop
+      file:
+        path: /home/ubuntu/devshop
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: '0755'
+
+    - name: Copier configmap.yaml
+      copy:
+        src: configmap.yaml
+        dest: /home/ubuntu/devshop/configmap.yaml
+        owner: ubuntu
+        group: ubuntu
+        mode: '0644'
+
+    - name: Copier deployment.yaml
+      copy:
+        src: deployment.yaml
+        dest: /home/ubuntu/devshop/deployment.yaml
+        owner: ubuntu
+        group: ubuntu
+        mode: '0644'
+
+    - name: Copier service.yaml
+      copy:
+        src: service.yaml
+        dest: /home/ubuntu/devshop/service.yaml
+        owner: ubuntu
+        group: ubuntu
+        mode: '0644'
+
+    - name: Déployer DevShop sur Kubernetes
+      become_user: ubuntu
+      environment:
+        KUBECONFIG: /home/ubuntu/.kube/config
+      shell: |
+        kubectl apply -f /home/ubuntu/devshop/configmap.yaml
+        kubectl apply -f /home/ubuntu/devshop/deployment.yaml
+        kubectl apply -f /home/ubuntu/devshop/service.yaml
+
+- name: Joindre les workers au cluster
+  hosts: workers
+  become: yes
+  tasks:
+    - name: Joindre le worker au cluster
+      command: "{{ hostvars['worker_join'].kubeadm_join_cmd }}"

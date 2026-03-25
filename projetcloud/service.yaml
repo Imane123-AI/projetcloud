@@ -1,0 +1,14 @@
+# service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: devshop-service
+spec:
+  type: NodePort
+  selector:
+    app: devshop
+  ports:
+    - protocol: TCP
+      port: 5000
+      targetPort: 5000
+      nodePort: 30080

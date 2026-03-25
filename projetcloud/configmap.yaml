@@ -1,0 +1,7 @@
+# configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: devshop-config
+data:
+  SECRET_KEY: "devops-master-dsbd-2026"
